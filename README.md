@@ -34,7 +34,7 @@ spl-token mint $MINT_USDC 1000 $ACC_USDC
 
 ```
 anchor launch
-node cli/index.js init $MINT_USDC $MINT_MELON $ACC_MELON 10 --deposit_duration 300 --cancel_duration 60
+node cli/index.js init $MINT_USDC $MINT_MELON $ACC_MELON 10 --deposit_duration 300 --cancel_duration 60 --withdraw_duration 180
 ```
 
 4. Bid 100 💵 tokens. But first create an account to receive the redeemable pool token, that will allow you to receive 🍉 tokens in phase 3. You can increase or reduce your bid, by calling bid again.
@@ -47,3 +47,11 @@ node cli/index.js bid $ACC_POOL $ACC_USDC 100 $ACC_REDEEM
 ## Configuration
 
 To use the cli on other clusters than localnet set the env variable CLUSTER_RPC_URL=https://api.devnet.solana.com
+
+## Updated Commands
+
+1. Initialize pool: `./init_pool.sh` - NOTE: Modify the variables in this script to meet your needs.
+2. Show pool info: `node src/cli.js inspect <pool-account>`
+3. Withdraw pool USDC: `node src/cli.js withdraw-usdc <pool-account>` - NOTE: IDO must be over for this command to run
+4. Withdraw pool 🍉: `node src/cli.js withdraw-watermelon <pool-account>` - NOTE: You should only run this after you are 100% sure everyone has redeemed their watermelon. This is used in the event that the IDO is not 100% subscribed and there are some tokens left.
+5. Generate fake USDC: `./init_usdc.sh` - NOTE: Modify the variables in this script to meet your needs. It will automatically airdrop USDC to any tester wallets if you need.
