@@ -1,8 +1,11 @@
 [programs.localnet]
 ido_pool = "7TZqAhcqsPHoZ7sDAeUpDj5woKDDFMYGuX1bgoBsfGPv"
 
+[programs.devnet]
+ido_pool = "7TZqAhcqsPHoZ7sDAeUpDj5woKDDFMYGuX1bgoBsfGPv"
+
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

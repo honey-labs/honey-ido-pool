@@ -18,48 +18,45 @@ describe("ido-pool", () => {
     const program = anchor.workspace.IdoPool;
 
     // All mints default to 6 decimal places.
-    const watermelonIdoAmount = new anchor.BN(5000000);
+    const honeyIdoAmount = new anchor.BN(5000000);
 
     // These are all of the variables we assume exist in the world already and
     // are available to the client.
     let usdcMint = null;
-    let watermelonMint = null;
+    let honeyMint = null;
     let creatorUsdc = null; //token account
-    let creatorWatermelon = null; //token account
+    let creatorHoney = null; //token account
 
     it("Initializes the state-of-the-world", async () => {
         usdcMint = await createMint(provider);
-        watermelonMint = await createMint(provider);
+        honeyMint = await createMint(provider);
         creatorUsdc = await createTokenAccount(
             provider,
             usdcMint,
             provider.wallet.publicKey
         );
-        creatorWatermelon = await createTokenAccount(
+        creatorHoney = await createTokenAccount(
             provider,
-            watermelonMint,
+            honeyMint,
             provider.wallet.publicKey
         );
-        // Mint Watermelon tokens the will be distributed from the IDO pool.
+        // Mint Honey tokens the will be distributed from the IDO pool.
         await mintToAccount(
             provider,
-            watermelonMint,
-            creatorWatermelon,
-            watermelonIdoAmount,
+            honeyMint,
+            creatorHoney,
+            honeyIdoAmount,
             provider.wallet.publicKey
         );
-        creator_watermelon_account = await getTokenAccount(
-            provider,
-            creatorWatermelon
-        );
-        assert.ok(creator_watermelon_account.amount.eq(watermelonIdoAmount));
+        creator_honey_account = await getTokenAccount(provider, creatorHoney);
+        assert.ok(creator_honey_account.amount.eq(honeyIdoAmount));
     });
 
     // These are all variables the client will have to create to initialize the
     // IDO pool
-    let poolSigner = null; //pda of(watermelon mint)
+    let poolSigner = null; //pda of(honey mint)
     let redeemableMint = null; //owner: poolSigner
-    let poolWatermelon = null; //owner: poolSigner
+    let poolHoney = null; //owner: poolSigner
     let poolUsdc = null; //owner: poolSigner
     let poolAccount = null; //generated keypair
 
@@ -68,10 +65,10 @@ describe("ido-pool", () => {
     let endIdoTs = null;
 
     it("Initializes the IDO pool", async () => {
-        // We use the watermelon mint address as the seed, could use something else though.
+        // We use the honey mint address as the seed, could use something else though.
         const [_poolSigner, nonce] =
             await anchor.web3.PublicKey.findProgramAddress(
-                [watermelonMint.toBuffer()],
+                [honeyMint.toBuffer()],
                 program.programId
             );
         poolSigner = _poolSigner;
@@ -79,26 +76,20 @@ describe("ido-pool", () => {
         // Pool doesn't need a Redeemable SPL token account because it only
         // burns and mints redeemable tokens, it never stores them.
         redeemableMint = await createMint(provider, poolSigner);
-        poolWatermelon = await createTokenAccount(
-            provider,
-            watermelonMint,
-            poolSigner
-        );
+        poolHoney = await createTokenAccount(provider, honeyMint, poolSigner);
         poolUsdc = await createTokenAccount(provider, usdcMint, poolSigner);
 
         poolAccount = anchor.web3.Keypair.generate();
         const nowBn = new anchor.BN(Date.now() / 1000);
         startIdoTs = nowBn.add(new anchor.BN(5));
-        endDepositsTs = nowBn.add(new anchor.BN(10));
         endIdoTs = nowBn.add(new anchor.BN(15));
         withdrawTs = nowBn.add(new anchor.BN(19));
 
         // Atomically create the new account and initialize it with the program.
         await program.rpc.initializePool(
-            watermelonIdoAmount,
+            honeyIdoAmount,
             nonce,
             startIdoTs,
-            endDepositsTs,
             endIdoTs,
             withdrawTs,
             {
@@ -107,11 +98,11 @@ describe("ido-pool", () => {
                     poolSigner,
                     distributionAuthority: provider.wallet.publicKey,
                     payer: provider.wallet.publicKey,
-                    creatorWatermelon,
+                    creatorHoney,
                     redeemableMint,
                     usdcMint,
-                    watermelonMint,
-                    poolWatermelon,
+                    honeyMint,
+                    poolHoney,
                     poolUsdc,
                     tokenProgram: TOKEN_PROGRAM_ID,
                     rent: anchor.web3.SYSVAR_RENT_PUBKEY,
@@ -122,11 +113,8 @@ describe("ido-pool", () => {
             }
         );
 
-        creators_watermelon_account = await getTokenAccount(
-            provider,
-            creatorWatermelon
-        );
-        assert.ok(creators_watermelon_account.amount.eq(new anchor.BN(0)));
+        creators_honey_account = await getTokenAccount(provider, creatorHoney);
+        assert.ok(creators_honey_account.amount.eq(new anchor.BN(0)));
     });
 
     // We're going to need to start using the associated program account for creating token accounts
@@ -258,68 +246,66 @@ describe("ido-pool", () => {
     //     assert.ok(userUsdcAccount.amount.eq(firstWithdrawal));
     // });
 
-    it("Exchanges user Redeemable tokens for watermelon", async () => {
+    it("Exchanges user Redeemable tokens for honey", async () => {
         // Wait until the IDO has opened.
         if (Date.now() < withdrawTs.toNumber() * 1000) {
             await sleep(withdrawTs.toNumber() * 1000 - Date.now() + 2000);
         }
         // let firstUserRedeemable = firstDeposit.sub(firstWithdrawal);
-        userWatermelon = await createTokenAccount(
+        userHoney = await createTokenAccount(
             provider,
-            watermelonMint,
+            honeyMint,
             provider.wallet.publicKey
         );
 
-        await program.rpc.exchangeRedeemableForWatermelon(firstDeposit, {
+        await program.rpc.exchangeRedeemableForHoney(firstDeposit, {
             accounts: {
                 poolAccount: poolAccount.publicKey,
                 poolSigner,
                 redeemableMint,
-                poolWatermelon,
+                poolHoney,
                 userAuthority: provider.wallet.publicKey,
-                userWatermelon,
+                userHoney,
                 userRedeemable,
                 tokenProgram: TOKEN_PROGRAM_ID,
                 clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             },
         });
 
-        poolWatermelonAccount = await getTokenAccount(provider, poolWatermelon);
-        let redeemedWatermelon = firstDeposit
-            .mul(watermelonIdoAmount)
-            .div(totalPoolUsdc);
-        let remainingWatermelon = watermelonIdoAmount.sub(redeemedWatermelon);
-        assert.ok(poolWatermelonAccount.amount.eq(remainingWatermelon));
-        userWatermelonAccount = await getTokenAccount(provider, userWatermelon);
-        assert.ok(userWatermelonAccount.amount.eq(redeemedWatermelon));
+        poolHoneyAccount = await getTokenAccount(provider, poolHoney);
+        let redeemedHoney = firstDeposit.mul(honeyIdoAmount).div(totalPoolUsdc);
+        let remainingHoney = honeyIdoAmount.sub(redeemedHoney);
+        assert.ok(poolHoneyAccount.amount.eq(remainingHoney));
+        userHoneyAccount = await getTokenAccount(provider, userHoney);
+        assert.ok(userHoneyAccount.amount.eq(redeemedHoney));
     });
 
-    it("Exchanges second users Redeemable tokens for watermelon", async () => {
-        secondUserWatermelon = await createTokenAccount(
+    it("Exchanges second users Redeemable tokens for honey", async () => {
+        secondUserHoney = await createTokenAccount(
             provider,
-            watermelonMint,
+            honeyMint,
             provider.wallet.publicKey
         );
 
-        await program.rpc.exchangeRedeemableForWatermelon(secondDeposit, {
+        await program.rpc.exchangeRedeemableForHoney(secondDeposit, {
             accounts: {
                 poolAccount: poolAccount.publicKey,
                 poolSigner,
                 redeemableMint,
-                poolWatermelon,
+                poolHoney,
                 userAuthority: provider.wallet.publicKey,
-                userWatermelon: secondUserWatermelon,
+                userHoney: secondUserHoney,
                 userRedeemable: secondUserRedeemable,
                 tokenProgram: TOKEN_PROGRAM_ID,
                 clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             },
         });
 
-        poolWatermelonAccount = await getTokenAccount(provider, poolWatermelon);
-        assert.ok(poolWatermelonAccount.amount.eq(new anchor.BN(0)));
-        secondUserWatermelonAccount = await getTokenAccount(
+        poolHoneyAccount = await getTokenAccount(provider, poolHoney);
+        assert.ok(poolHoneyAccount.amount.eq(new anchor.BN(0)));
+        secondUserHoneyAccount = await getTokenAccount(
             provider,
-            secondUserWatermelon
+            secondUserHoney
         );
     });
 
