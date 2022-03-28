@@ -169,11 +169,11 @@ async function createInitPool(
     // console.log("multisig program id:", MULTISIG_PROGRAM_ID);
 
     // We use the Honey mint address as the seed, could use something else though.
-    const [poolSigner, nonce] = await anchor.web3.PublicKey.findProgramAddress(
+    const [_poolSigner, nonce] = await anchor.web3.PublicKey.findProgramAddress(
         [honeyMint.toBuffer()],
         program.programId
     );
-    // poolSigner = _poolSigner;
+    poolSigner = _poolSigner;
 
     if (dryRun) {
         console.log("poolSigner: ", poolSigner.toBase58());
@@ -214,8 +214,8 @@ async function createInitPool(
                 accounts: {
                     poolAccount: poolSigner, //just try to create ix
                     poolSigner: poolSigner,
-                    distributionAuthority: provider.wallet.publicKey,
-                    payer: provider.wallet.publicKey,
+                    distributionAuthority: provider.wallet,
+                    payer: provider.wallet,
                     creatorHoney,
                     redeemableMint: poolSigner, //just try to create ix
                     honeyMint,
@@ -225,7 +225,9 @@ async function createInitPool(
                     tokenProgram: TOKEN_PROGRAM_ID,
                     rent: anchor.web3.SYSVAR_RENT_PUBKEY,
                     clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+                    systemProgram: anchor.web3.SystemProgram.programId,
                 },
+                signers: [poolSigner],
             }
         );
         console.log(
@@ -241,6 +243,10 @@ async function createInitPool(
 
     // Pool doesn't need a Redeemable SPL token account because it only
     // burns and mints redeemable tokens, it never stores them.
+
+    await console.log("poolSigner", poolSigner);
+    await console.log("_poolSigner", _poolSigner);
+
     redeemableMint = await serum.createMint(
         provider,
         poolSigner,
@@ -268,10 +274,10 @@ async function createInitPool(
         withdrawTs,
         {
             accounts: {
-                poolAccount: poolAccount.publicKey,
+                poolAccount: poolAccount,
                 poolSigner,
-                distributionAuthority: provider.wallet.publicKey,
-                payer: provider.wallet.publicKey,
+                distributionAuthority: provider.wallet,
+                payer: provider.wallet,
                 creatorHoney,
                 redeemableMint,
                 honeyMint,
@@ -281,9 +287,13 @@ async function createInitPool(
                 tokenProgram: TOKEN_PROGRAM_ID,
                 rent: anchor.web3.SYSVAR_RENT_PUBKEY,
                 clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+                systemProgram: anchor.web3.SystemProgram.programId,
             },
+            signers: [poolAccount, poolSigner],
         }
     );
+
+    console.log("ix", ix);
 
     // const txSize = 590; //~= 100 + 34*accounts + instruction_data_len
     // const transaction = new anchor5.web3.Account();
@@ -658,10 +668,7 @@ yargs(hideBin(process.argv))
             y
                 .positional("usdc_mint", usdc_mint)
                 .positional("honey_mint", honey_mint)
-                .positional("honey_account", {
-                    describe: "the account supplying the token for sale 🍉",
-                    type: "string",
-                })
+                .positional("honey_account", honey_account)
                 .positional("honey_amount", {
                     describe: "the amount of tokens offered in this sale 🍉",
                     type: "number",
@@ -737,10 +744,7 @@ yargs(hideBin(process.argv))
             y
                 .positional("usdc_mint", usdc_mint)
                 .positional("honey_mint", honey_mint)
-                .positional("honey_account", {
-                    describe: "the account supplying the token for sale 🍉",
-                    type: "string",
-                })
+                .positional("honey_account", honey_account)
                 .positional("honey_amount", {
                     describe: "the amount of tokens offered in this sale 🍉",
                     type: "number",
