@@ -1,5 +1,4 @@
 const anchor = require("@project-serum/anchor");
-const anchor5 = require("anchor5");
 const serum = require("@project-serum/common");
 const yargs = require("yargs/yargs");
 const { hideBin } = require("yargs/helpers");
@@ -25,10 +24,10 @@ const { encode } = require("js-base64");
 // const MULTISIG_AUTHORITY = 'EkBHKeUfLdJ26oyLSAbKVxzGCRSM4oAmV9GYumS7r7gS'; //
 
 function getKeypair(pk_path) {
-    const pk = JSON.parse(fs.readFileSync(pk_path).toString());
+    const pk = JSON.parse(fs.readFileSync(pk_path));
 
     const pk_uint8 = Uint8Array.from(pk);
-    const signerAccount = anchor.web3.Keypair.fromSecretKey(pk_uint8);
+    const signerAccount = pk_uint8;
     return signerAccount;
 }
 
@@ -170,14 +169,14 @@ async function createInitPool(
     // console.log("multisig program id:", MULTISIG_PROGRAM_ID);
 
     // We use the Honey mint address as the seed, could use something else though.
-    const [_poolSigner, nonce] = await anchor.web3.PublicKey.findProgramAddress(
+    const [poolSigner, nonce] = await anchor.web3.PublicKey.findProgramAddress(
         [honeyMint.toBuffer()],
         program.programId
     );
-    poolSigner = _poolSigner;
+    // poolSigner = _poolSigner;
 
     if (dryRun) {
-        console.log("_poolSigner: ", _poolSigner.toBase58());
+        console.log("poolSigner: ", poolSigner.toBase58());
         console.log("num_ido_tokens: ", honeyIdoAmount.toString());
         const [startIdoT, endIdoT, withdrawT] = [
             new Date(startIdoTs.toNumber() * 1000),
@@ -214,7 +213,7 @@ async function createInitPool(
             {
                 accounts: {
                     poolAccount: poolSigner, //just try to create ix
-                    poolSigner,
+                    poolSigner: poolSigner,
                     distributionAuthority: provider.wallet.publicKey,
                     payer: provider.wallet.publicKey,
                     creatorHoney,
@@ -249,7 +248,7 @@ async function createInitPool(
     );
     poolHoney = await serum.createTokenAccount(provider, honeyMint, poolSigner);
     poolUsdc = await serum.createTokenAccount(provider, usdcMint, poolSigner);
-    const poolAccount = new anchor.web3.Account();
+    const poolAccount = new anchor.web3.Keypair.generate();
 
     console.log(
         "initializePool",
@@ -322,7 +321,6 @@ async function initPool(
     creatorHoney,
     honeyIdoAmount,
     startIdoTs,
-    endDepositsTs,
     endIdoTs,
     withdrawTs,
     distributionAuthority,
@@ -354,7 +352,6 @@ async function initPool(
         honeyIdoAmount.toString(),
         nonce,
         startIdoTs.toString(),
-        endDepositsTs.toString(),
         endIdoTs.toString(),
         withdrawTs.toString()
     );
@@ -363,14 +360,13 @@ async function initPool(
         honeyIdoAmount,
         nonce,
         startIdoTs,
-        endDepositsTs,
         endIdoTs,
         withdrawTs,
         {
             accounts: {
                 poolAccount: poolAccount.publicKey,
                 poolSigner,
-                distributionAuthority,
+                distributionAuthority: provider.wallet.publicKey,
                 payer: provider.wallet.publicKey,
                 creatorHoney,
                 redeemableMint,
@@ -383,11 +379,6 @@ async function initPool(
                 clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             },
             signers: [poolAccount],
-            instructions: [
-                await program.account.poolAccount.createInstruction(
-                    poolAccount
-                ),
-            ],
         }
     );
 
@@ -646,12 +637,12 @@ const deposit_duration = {
     type: "number",
 };
 
-const cancel_duration = {
-    describe:
-        "the number of seconds users can withdraw from the pool to cancel their bid",
-    default: 24 * 60 * 60,
-    type: "number",
-};
+// const cancel_duration = {
+//     describe:
+//         "the number of seconds users can withdraw from the pool to cancel their bid",
+//     default: 24 * 60 * 60,
+//     type: "number",
+// };
 
 const withdraw_ts = {
     describe: "the timestamp users can withdraw honey from pool after ido over",
@@ -681,12 +672,11 @@ yargs(hideBin(process.argv))
                 })
                 .option("start_time", start_time)
                 .option("deposit_duration", deposit_duration)
-                .option("cancel_duration", cancel_duration)
+                // .option("cancel_duration", cancel_duration)
                 .option("withdraw_ts", withdraw_ts),
         async (args) => {
             const start = new anchor.BN(args.start_time);
-            const endDeposits = new anchor.BN(args.deposit_duration).add(start);
-            const endIdo = new anchor.BN(args.cancel_duration).add(endDeposits);
+            const endIdo = new anchor.BN(args.deposit_duration).add(start);
             const withdrawTs = new anchor.BN(args.withdraw_ts);
             console.log("args: ", args);
 
@@ -708,7 +698,6 @@ yargs(hideBin(process.argv))
                 new anchor.web3.PublicKey(args.honey_account),
                 (args.honey_amount * 10 ** mintInfo.decimals).toString(),
                 start,
-                endDeposits,
                 endIdo,
                 withdrawTs,
                 new anchor.web3.PublicKey(args.authority),
@@ -717,15 +706,14 @@ yargs(hideBin(process.argv))
         }
     )
     .command(
-        "modify-pool-time <pool_account> <start_ido> <end_deposits> <end_ido> <withdraw_melon>",
+        "modify-pool-time <pool_account> <start_ido> <end_ido> <withdraw_honey>",
         "create modify pool time",
         (y) =>
             y
                 .positional("pool_account", pool_account)
                 .positional("start_ido", { type: "number" })
-                .positional("end_deposits", { type: "number" })
                 .positional("end_ido", { type: "number" })
-                .positional("withdraw_melon", { type: "number" })
+                .positional("withdraw_honey", { type: "number" })
                 .option("dry-run", {
                     desc: "dry run",
                     type: "boolean",
@@ -736,9 +724,8 @@ yargs(hideBin(process.argv))
             createModifyPool(
                 new anchor.web3.PublicKey(args.pool_account),
                 new anchor.BN(args.start_ido),
-                new anchor.BN(args.end_deposits),
                 new anchor.BN(args.end_ido),
-                new anchor.BN(args.withdraw_melon),
+                new anchor.BN(args.withdraw_honey),
                 args.dryRun
             );
         }
@@ -760,7 +747,7 @@ yargs(hideBin(process.argv))
                 })
                 .option("start_time", start_time)
                 .option("deposit_duration", deposit_duration)
-                .option("cancel_duration", cancel_duration)
+                // .option("cancel_duration", cancel_duration)
                 .option("withdraw_ts", withdraw_ts)
                 .option("dry-run", {
                     desc: "dry run",
@@ -769,8 +756,7 @@ yargs(hideBin(process.argv))
                 }),
         async (args) => {
             const start = new anchor.BN(args.start_time);
-            const endDeposits = new anchor.BN(args.deposit_duration).add(start);
-            const endIdo = new anchor.BN(args.cancel_duration).add(endDeposits);
+            const endIdo = new anchor.BN(args.deposit_duration).add(start);
             const withdrawTs = new anchor.BN(args.withdraw_ts);
             console.log("args: ", args);
 
@@ -785,7 +771,6 @@ yargs(hideBin(process.argv))
                 new anchor.web3.PublicKey(args.honey_account),
                 new anchor.BN(args.honey_amount * 10 ** mintInfo.decimals),
                 start,
-                endDeposits,
                 endIdo,
                 withdrawTs,
                 args.dryRun
