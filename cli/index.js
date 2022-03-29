@@ -7,6 +7,7 @@ const {
     getAssociatedTokenAddress,
 } = require("@project-serum/associated-token");
 // const { Keypair } = require("@solana/web3.js");
+const Token = require("@solana/spl-token");
 
 const path = require("path");
 const fs = require("fs");
@@ -87,19 +88,27 @@ const TOKEN_PROGRAM_ID = new anchor.web3.PublicKey(
 );
 
 async function createModifyPool(
-    poolAccount,
+    pc,
     startIdoTs,
     endIdoTs,
     withdrawTs,
     dryRun
 ) {
     // console.log("multisig program id:", MULTISIG_PROGRAM_ID);
-    const ix = program.instruction.modifyIdoTime(
-        startIdoTs,
-        endIdoTs,
-        withdrawTs, {
+    const poolacc = new anchor.web3.PublicKey("5wVgdYy51dBzids34asBKe8mxr1zS2tCkP6DioqcGL2N");
+    console.log("pool account ", poolacc);
+    const startIdo = new anchor.BN(1648582200);
+    const endDepositsIdo = new anchor.BN(1648582500);
+    const endIdo = new anchor.BN(1648582800);
+    const withdrawIdo = new anchor.BN(1648583100);
+    console.log(program.rpc);
+    const ix = await program.rpc.modifyIdoTime(
+        startIdo,
+        endDepositsIdo,
+        endIdo,
+        withdrawIdo, {
             accounts: {
-                poolAccount: poolAccount,
+                poolAccount: poolacc,
                 distributionAuthority: provider.wallet.publicKey,
                 payer: provider.wallet.publicKey,
             },
@@ -468,114 +477,112 @@ async function bid(poolAccount, userUsdc, bidAmount, userRedeemable) {
     }
 }
 
-// async function createWithdrawUsdc(
-//     poolAccount,
-//     amount,
-//     receiver,
-//     dryRun
-// ) {
-//     console.log("multisig program id:", MULTISIG_PROGRAM_ID);
+async function createWithdrawUsdc(
+    poolAccount,
+    amount,
+    receiver,
+    dryRun
+) {
+    console.log("multisig program id:", MULTISIG_PROGRAM_ID);
 
-//     const pool = await program.account.poolAccount.fetch(poolAccount);
-//     const poolUsdc = await serum.getTokenAccount(provider, pool.poolUsdc);
-//     const ix = program.instruction.withdrawPoolUsdc(new anchor.BN(amount), {
-//         accounts: {
-//             poolAccount: poolAccount,
-//             poolSigner: poolUsdc.owner, //PDA
-//             poolUsdc: pool.poolUsdc,
-//             distributionAuthority: pool.distributionAuthority,
-//             payer: provider.wallet.publicKey,
-//             creatorUsdc: receiver,
-//             tokenProgram: TOKEN_PROGRAM_ID,
-//             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-//         },
-//     });
+    const pool = await program.account.poolAccount.fetch(poolAccount);
+    const poolUsdc = await serum.getTokenAccount(provider, pool.poolUsdc);
+    const ix = program.instruction.withdrawPoolUsdc(new anchor.BN(amount), {
+        accounts: {
+            poolAccount: poolAccount,
+            poolSigner: poolUsdc.owner, //PDA
+            poolUsdc: pool.poolUsdc,
+            distributionAuthority: pool.distributionAuthority,
+            payer: provider.wallet.publicKey,
+            creatorUsdc: receiver,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+        },
+    });
 
-//     console.log(
-//         "accounts: pool_account(0) -> pool_signer(1) -> pool_usdc(2) -> distribution_authority(3) -> payer(4) -> creator_usdc(5) -> token_program(6) -> clock(7)"
-//     );
-//     for (let i = 0; i < ix.keys.length; i++) {
-//         const k = ix.keys[i];
-//         console.log(
-//             i,
-//             k.pubkey.toBase58().padEnd(45, " "),
-//             " w/s? ",
-//             k.isWritable,
-//             k.isSigner
-//         );
-//     }
-//     const localTransactionData = encode(
-//         browserBuffer.Buffer.from(ix.data).toString()
-//     );
-//     console.log("instructionBase64: ", localTransactionData);
+    console.log(
+        "accounts: pool_account(0) -> pool_signer(1) -> pool_usdc(2) -> distribution_authority(3) -> payer(4) -> creator_usdc(5) -> token_program(6) -> clock(7)"
+    );
+    for (let i = 0; i < ix.keys.length; i++) {
+        const k = ix.keys[i];
+        console.log(
+            i,
+            k.pubkey.toBase58().padEnd(45, " "),
+            " w/s? ",
+            k.isWritable,
+            k.isSigner
+        );
+    }
+    const localTransactionData = encode(
+        browserBuffer.Buffer.from(ix.data).toString()
+    );
+    console.log("instructionBase64: ", localTransactionData);
 
-//     if (dryRun) {
-//         console.log("dry-run");
-//         return;
-//     }
-//     const txSize = 400; //~= 100 + 34*accounts + instruction_data_len
-//     const transaction = new anchor5.web3.Account();
-//     // console.log('[dbg] provider.wallet:', provider.wallet);
-//     const txid = await multisigProgram.rpc.createTransaction(
-//         ix.programId,
-//         ix.keys,
-//         ix.data,
-//         {
-//             accounts: {
-//                 multisig: new anchor5.web3.PublicKey(MULTISIG_ACCOUNT),
-//                 transaction: transaction.publicKey,
-//                 proposer: provider.wallet.publicKey,
-//                 rent: anchor5.web3.SYSVAR_RENT_PUBKEY,
-//             },
-//             instructions: [
-//                 await multisigProgram.account.transaction.createInstruction(
-//                     transaction,
-//                     txSize
-//                 ),
-//             ],
-//             signers: [transaction, provider.wallet.payer],
-//         }
-//     );
-//     console.log("transaction", transaction.publicKey.toBase58());
-//     console.log("txid:", txid);
-// }
+    if (dryRun) {
+        console.log("dry-run");
+        return;
+    }
+    const txSize = 400; //~= 100 + 34*accounts + instruction_data_len
+    const transaction = new anchor5.web3.Account();
+    // console.log('[dbg] provider.wallet:', provider.wallet);
+    const txid = await multisigProgram.rpc.createTransaction(
+        ix.programId,
+        ix.keys,
+        ix.data, {
+            accounts: {
+                multisig: new anchor5.web3.PublicKey(MULTISIG_ACCOUNT),
+                transaction: transaction.publicKey,
+                proposer: provider.wallet.publicKey,
+                rent: anchor5.web3.SYSVAR_RENT_PUBKEY,
+            },
+            instructions: [
+                await multisigProgram.account.transaction.createInstruction(
+                    transaction,
+                    txSize
+                ),
+            ],
+            signers: [transaction, provider.wallet.payer],
+        }
+    );
+    console.log("transaction", transaction.publicKey.toBase58());
+    console.log("txid:", txid);
+}
 
-// async function withdrawUsdc(poolAccount) {
-//     const pool = await program.account.poolAccount.fetch(poolAccount);
-//     const poolUsdc = await serum.getTokenAccount(provider, pool.poolUsdc);
-//     const associatedUsdc = await getAssociatedTokenAddress(
-//         provider.wallet.publicKey,
-//         poolUsdc.mint
-//     );
-//     console.log("associatedUsdc: ", associatedUsdc.toBase58());
-//     const ixs = [];
-//     try {
-//         await serum.getTokenAccount(provider, associatedUsdc);
-//     } catch (e) {
-//         //associated usdc token account not found
-//         // ixs.push(await createAssociatedTokenAccount(
-//         //   provider.wallet.publicKey, provider.wallet.publicKey, poolUsdc.mint
-//         // ))
-//     }
+async function withdrawUsdc(poolAccount) {
+    const pool = await program.account.poolAccount.fetch(poolAccount);
+    const poolUsdc = await serum.getTokenAccount(provider, pool.poolUsdc);
+    const associatedUsdc = await getAssociatedTokenAddress(
+        provider.wallet.publicKey,
+        poolUsdc.mint
+    );
+    console.log("associatedUsdc: ", associatedUsdc.toBase58());
+    const ixs = [];
+    try {
+        await serum.getTokenAccount(provider, associatedUsdc);
+    } catch (e) {
+        //associated usdc token account not found
+        // ixs.push(await Token.createAssociatedTokenAccount(
+        //     provider.wallet.publicKey, provider.wallet.publicKey, poolUsdc.mint
+        // ))
+    }
 
-//     const txid = await program.rpc.withdrawPoolUsdc(
-//         new anchor.BN(poolUsdc.amount.toString()),
-//         {
-//             accounts: {
-//                 poolAccount: poolAccount,
-//                 poolSigner: poolUsdc.owner, //PDA
-//                 poolUsdc: pool.poolUsdc,
-//                 distributionAuthority: provider.wallet.publicKey,
-//                 payer: provider.wallet.publicKey,
-//                 creatorUsdc: associatedUsdc,
-//                 tokenProgram: TOKEN_PROGRAM_ID,
-//                 clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-//             },
-//             // instructions: ixs,
-//         }
-//     );
-//     console.log("txid: ", txid);
-// }
+    const txid = await program.rpc.withdrawPoolUsdc(
+        new anchor.BN(poolUsdc.amount.toString()), {
+            accounts: {
+                poolAccount: poolAccount,
+                poolSigner: poolUsdc.owner, //PDA
+                poolUsdc: pool.poolUsdc,
+                distributionAuthority: provider.wallet.publicKey,
+                payer: provider.wallet.publicKey,
+                creatorUsdc: associatedUsdc,
+                tokenProgram: TOKEN_PROGRAM_ID,
+                clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+            },
+            // instructions: ixs,
+        }
+    );
+    console.log("txid: ", txid);
+}
 
 async function withdrawHoney(poolAccount) {
     const pool = await program.account.poolAccount.fetch(poolAccount);
@@ -732,7 +739,7 @@ yargs(hideBin(process.argv))
         async(args) => {
             console.log("args", args);
             createModifyPool(
-                new anchor.web3.PublicKey(args.pool_account),
+                new anchor.web3.PublicKey("5wVgdYy51dBzids34asBKe8mxr1zS2tCkP6DioqcGL2N"),
                 new anchor.BN(args.start_ido),
                 new anchor.BN(args.end_ido),
                 new anchor.BN(args.withdraw_honey),

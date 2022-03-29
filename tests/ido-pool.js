@@ -70,7 +70,7 @@ describe("ido-pool", () => {
         const [_poolSigner, nonce] =
         await anchor.web3.PublicKey.findProgramAddress(
             [honeyMint.toBuffer()],
-            new PublicKey("GGKqFCnfeGbs4nWNW4sa2A91RaMMzx8ookRs2ee7hHd5")
+            new PublicKey("B2kV3T7QNouCUgMF886R82bdUHxcywXWTDd4of6TP2n4")
         );
         poolSigner = _poolSigner;
         console.log(poolSigner.toString());
