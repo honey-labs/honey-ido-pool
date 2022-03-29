@@ -8,15 +8,16 @@ const {
     createTokenAccount,
     mintToAccount,
 } = require("./utils");
+const { PublicKey } = require("@solana/web3.js");
 
 describe("ido-pool", () => {
-    const provider = anchor.Provider.local();
+    let cluster = 'https://api.devnet.solana.com';
+    const provider = anchor.Provider.local(cluster);
 
     // Configure the client to use the local cluster.
     anchor.setProvider(provider);
 
     const program = anchor.workspace.IdoPool;
-
     // All mints default to 6 decimal places.
     const honeyIdoAmount = new anchor.BN(5000000);
 
@@ -27,7 +28,7 @@ describe("ido-pool", () => {
     let creatorUsdc = null; //token account
     let creatorHoney = null; //token account
 
-    it("Initializes the state-of-the-world", async () => {
+    it("Initializes the state-of-the-world", async() => {
         usdcMint = await createMint(provider);
         honeyMint = await createMint(provider);
         creatorUsdc = await createTokenAccount(
@@ -64,14 +65,15 @@ describe("ido-pool", () => {
     let endDepositsTs = null;
     let endIdoTs = null;
 
-    it("Initializes the IDO pool", async () => {
+    it("Initializes the IDO pool", async() => {
         // We use the honey mint address as the seed, could use something else though.
         const [_poolSigner, nonce] =
-            await anchor.web3.PublicKey.findProgramAddress(
-                [honeyMint.toBuffer()],
-                program.programId
-            );
+        await anchor.web3.PublicKey.findProgramAddress(
+            [honeyMint.toBuffer()],
+            new PublicKey("GGKqFCnfeGbs4nWNW4sa2A91RaMMzx8ookRs2ee7hHd5")
+        );
         poolSigner = _poolSigner;
+        console.log(poolSigner.toString());
 
         // Pool doesn't need a Redeemable SPL token account because it only
         // burns and mints redeemable tokens, it never stores them.
@@ -91,8 +93,7 @@ describe("ido-pool", () => {
             nonce,
             startIdoTs,
             endIdoTs,
-            withdrawTs,
-            {
+            withdrawTs, {
                 accounts: {
                     poolAccount: poolAccount.publicKey,
                     poolSigner,
@@ -123,9 +124,9 @@ describe("ido-pool", () => {
     let userUsdc = null; //token account
     let userRedeemable = null; //token account
     // 10 usdc
-    const firstDeposit = new anchor.BN(10_000_349);
+    const firstDeposit = new anchor.BN(10);
 
-    it("Exchanges user USDC for redeemable tokens", async () => {
+    it("Exchanges user USDC for redeemable tokens", async() => {
         // Wait until the IDO has opened.
         if (Date.now() < startIdoTs.toNumber() * 1000) {
             await sleep(startIdoTs.toNumber() * 1000 - Date.now() + 1000);
@@ -151,8 +152,7 @@ describe("ido-pool", () => {
 
         try {
             const tx = await program.rpc.exchangeUsdcForRedeemable(
-                firstDeposit,
-                {
+                firstDeposit, {
                     accounts: {
                         poolAccount: poolAccount.publicKey,
                         poolSigner,
@@ -176,10 +176,10 @@ describe("ido-pool", () => {
     });
 
     // 23 usdc
-    const secondDeposit = new anchor.BN(23_000_672);
+    const secondDeposit = new anchor.BN(23);
     let totalPoolUsdc = null;
 
-    it("Exchanges a second users USDC for redeemable tokens", async () => {
+    it("Exchanges a second users USDC for redeemable tokens", async() => {
         secondUserUsdc = await createTokenAccount(
             provider,
             usdcMint,
@@ -246,7 +246,7 @@ describe("ido-pool", () => {
     //     assert.ok(userUsdcAccount.amount.eq(firstWithdrawal));
     // });
 
-    it("Exchanges user Redeemable tokens for honey", async () => {
+    it("Exchanges user Redeemable tokens for honey", async() => {
         // Wait until the IDO has opened.
         if (Date.now() < withdrawTs.toNumber() * 1000) {
             await sleep(withdrawTs.toNumber() * 1000 - Date.now() + 2000);
@@ -280,7 +280,7 @@ describe("ido-pool", () => {
         assert.ok(userHoneyAccount.amount.eq(redeemedHoney));
     });
 
-    it("Exchanges second users Redeemable tokens for honey", async () => {
+    it("Exchanges second users Redeemable tokens for honey", async() => {
         secondUserHoney = await createTokenAccount(
             provider,
             honeyMint,
@@ -309,7 +309,7 @@ describe("ido-pool", () => {
         );
     });
 
-    it("Withdraws total USDC from pool account", async () => {
+    it("Withdraws total USDC from pool account", async() => {
         const acc = await getTokenAccount(provider, poolUsdc);
         await program.rpc.withdrawPoolUsdc(new anchor.BN(acc.amount), {
             accounts: {
@@ -330,13 +330,12 @@ describe("ido-pool", () => {
         assert.ok(creatorUsdcAccount.amount.eq(totalPoolUsdc));
     });
 
-    it("Modify ido time", async () => {
+    it("Modify ido time", async() => {
         await program.rpc.modifyIdoTime(
             new anchor.BN(1),
             new anchor.BN(2),
             new anchor.BN(3),
-            new anchor.BN(4),
-            {
+            new anchor.BN(4), {
                 accounts: {
                     poolAccount: poolAccount.publicKey,
                     distributionAuthority: provider.wallet.publicKey,

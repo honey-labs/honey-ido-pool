@@ -6,10 +6,12 @@ const { TokenInstructions } = require("@project-serum/serum");
 const {
     getAssociatedTokenAddress,
 } = require("@project-serum/associated-token");
+// const { Keypair } = require("@solana/web3.js");
 
 const path = require("path");
 const fs = require("fs");
 const browserBuffer = require("browserBuffer");
+const { readJSONSync } = require('fs-extra');
 
 const { encode } = require("js-base64");
 
@@ -32,6 +34,7 @@ function getKeypair(pk_path) {
 }
 
 let provider;
+
 function setProvider() {
     const network = "https://api.devnet.solana.com";
     const opts = {
@@ -41,9 +44,11 @@ function setProvider() {
         network,
         opts.preflightCommitment
     );
-    const pk_path = "./keypair.json";
-    const signerAccount = getKeypair(pk_path);
-    const wallet = new anchor.Wallet(signerAccount);
+    // const pk_path = "";
+    // const signerAccount = getKeypair(pk_path);
+    const WALLET_SECRET_KEY = new Uint8Array(readJSONSync(`/Users/brianbroeking/.config/solana/id.json`));
+    const wallet = new anchor.Wallet(anchor.web3.Keypair.fromSecretKey(WALLET_SECRET_KEY));
+    // const wallet = new anchor.Wallet(signerAccount);
     provider = new anchor.Provider(
         connection,
         wallet,
@@ -60,7 +65,7 @@ function getProgram(idl_path, program_id, provider) {
 }
 
 const idl_path = "../target/idl/ido_pool.json";
-const program_id = "7TZqAhcqsPHoZ7sDAeUpDj5woKDDFMYGuX1bgoBsfGPv";
+const program_id = "FvsasXFPtyEcGv7cRqutXAydR54DGiR3p3ohjqjn7F8Z";
 const program = getProgram(idl_path, program_id, provider);
 
 // const multisigProgram = new anchor5.Program(
@@ -92,8 +97,7 @@ async function createModifyPool(
     const ix = program.instruction.modifyIdoTime(
         startIdoTs,
         endIdoTs,
-        withdrawTs,
-        {
+        withdrawTs, {
             accounts: {
                 poolAccount: poolAccount,
                 distributionAuthority: provider.wallet.publicKey,
@@ -209,8 +213,7 @@ async function createInitPool(
             nonce,
             startIdoTs,
             endIdoTs,
-            withdrawTs,
-            {
+            withdrawTs, {
                 accounts: {
                     poolAccount: poolSigner, //just try to create ix
                     poolSigner: poolSigner,
@@ -254,7 +257,7 @@ async function createInitPool(
     );
     poolHoney = await serum.createTokenAccount(provider, honeyMint, poolSigner);
     poolUsdc = await serum.createTokenAccount(provider, usdcMint, poolSigner);
-    const poolAccount = new anchor.web3.Keypair.generate();
+    const poolAccount = anchor.web3.Keypair.generate();
 
     console.log(
         "initializePool",
@@ -266,18 +269,17 @@ async function createInitPool(
     );
     // Atomically create the new account and initialize it with the program.
 
-    const ix = program.instruction.initializePool(
+    const ix = program.rpc.initializePool(
         honeyIdoAmount,
         nonce,
         startIdoTs,
         endIdoTs,
-        withdrawTs,
-        {
+        withdrawTs, {
             accounts: {
-                poolAccount: poolAccount,
+                poolAccount: poolAccount.publicKey,
                 poolSigner,
-                distributionAuthority: provider.wallet,
-                payer: provider.wallet,
+                distributionAuthority: provider.wallet.publicKey,
+                payer: provider.wallet.publicKey,
                 creatorHoney,
                 redeemableMint,
                 honeyMint,
@@ -289,7 +291,7 @@ async function createInitPool(
                 clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
                 systemProgram: anchor.web3.SystemProgram.programId,
             },
-            signers: [poolAccount, poolSigner],
+            signers: [poolAccount],
         }
     );
 
@@ -371,8 +373,7 @@ async function initPool(
         nonce,
         startIdoTs,
         endIdoTs,
-        withdrawTs,
-        {
+        withdrawTs, {
             accounts: {
                 poolAccount: poolAccount.publicKey,
                 poolSigner,
@@ -387,10 +388,13 @@ async function initPool(
                 tokenProgram: TOKEN_PROGRAM_ID,
                 rent: anchor.web3.SYSVAR_RENT_PUBKEY,
                 clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+                systemProgram: anchor.web3.SystemProgram.programId,
             },
             signers: [poolAccount],
         }
     );
+
+    console.log('pool init ');
 
     console.log(
         `🏦 IDO pool initialized with ${(
@@ -592,8 +596,7 @@ async function withdrawHoney(poolAccount) {
     }
 
     const txid = await program.rpc.withdrawPoolHoney(
-        new anchor.BN(poolHoney.amount.toString()),
-        {
+        new anchor.BN(poolHoney.amount.toString()), {
             accounts: {
                 poolAccount: poolAccount,
                 poolSigner: poolHoney.owner, // PDA
@@ -661,72 +664,72 @@ const withdraw_ts = {
 };
 
 yargs(hideBin(process.argv))
-    .command(
-        "init <usdc_mint> <honey_mint> <honey_account> <honey_amount> <authority>",
-        "initialize IDO pool",
-        (y) =>
-            y
-                .positional("usdc_mint", usdc_mint)
-                .positional("honey_mint", honey_mint)
-                .positional("honey_account", honey_account)
-                .positional("honey_amount", {
-                    describe: "the amount of tokens offered in this sale 🍉",
-                    type: "number",
-                })
-                .positional("authority", {
-                    describe: "distributionAuthority",
-                    type: "string",
-                })
-                .option("start_time", start_time)
-                .option("deposit_duration", deposit_duration)
-                // .option("cancel_duration", cancel_duration)
-                .option("withdraw_ts", withdraw_ts),
-        async (args) => {
-            const start = new anchor.BN(args.start_time);
-            const endIdo = new anchor.BN(args.deposit_duration).add(start);
-            const withdrawTs = new anchor.BN(args.withdraw_ts);
-            console.log("args: ", args);
+    // .command(
+    //     "init <usdc_mint> <honey_mint> <honey_account> <honey_amount> <authority>",
+    //     "initialize IDO pool",
+    //     (y) =>
+    //     y
+    //     .positional("usdc_mint", usdc_mint)
+    //     .positional("honey_mint", honey_mint)
+    //     .positional("honey_account", honey_account)
+    //     .positional("honey_amount", {
+    //         describe: "the amount of tokens offered in this sale 🍉",
+    //         type: "number",
+    //     })
+    //     .positional("authority", {
+    //         describe: "distributionAuthority",
+    //         type: "string",
+    //     })
+    //     .option("start_time", start_time)
+    //     .option("deposit_duration", deposit_duration)
+    //     // .option("cancel_duration", cancel_duration)
+    //     .option("withdraw_ts", withdraw_ts),
+    //     async(args) => {
+    //         const start = new anchor.BN(args.start_time);
+    //         const endIdo = new anchor.BN(args.deposit_duration).add(start);
+    //         const withdrawTs = new anchor.BN(args.withdraw_ts);
+    //         console.log("args: ", args);
 
-            const mintInfo = await serum.getMintInfo(
-                provider,
-                new anchor.web3.PublicKey(args.honey_mint)
-            );
+//         const mintInfo = await serum.getMintInfo(
+//             provider,
+//             new anchor.web3.PublicKey(args.honey_mint)
+//         );
 
-            const num = args.honey_amount * 10 ** mintInfo.decimals;
+//         const num = args.honey_amount * 10 ** mintInfo.decimals;
 
-            console.log(`Decimals: ${mintInfo.decimals}`);
+//         console.log(`Decimals: ${mintInfo.decimals}`);
 
-            // const anchorBn = new anchor.BN(num.toString());
-            // console.log(`anchorBn: ${anchorBn}`);
+//         // const anchorBn = new anchor.BN(num.toString());
+//         // console.log(`anchorBn: ${anchorBn}`);
 
-            initPool(
-                new anchor.web3.PublicKey(args.usdc_mint),
-                new anchor.web3.PublicKey(args.honey_mint),
-                new anchor.web3.PublicKey(args.honey_account),
-                (args.honey_amount * 10 ** mintInfo.decimals).toString(),
-                start,
-                endIdo,
-                withdrawTs,
-                new anchor.web3.PublicKey(args.authority),
-                mintInfo
-            );
-        }
-    )
-    .command(
+//         initPool(
+//             new anchor.web3.PublicKey(args.usdc_mint),
+//             new anchor.web3.PublicKey(args.honey_mint),
+//             new anchor.web3.PublicKey(args.honey_account),
+//             (args.honey_amount * 10 ** mintInfo.decimals).toString(),
+//             start,
+//             endIdo,
+//             withdrawTs,
+//             new anchor.web3.PublicKey(args.authority),
+//             mintInfo
+//         );
+//     }
+// )
+.command(
         "modify-pool-time <pool_account> <start_ido> <end_ido> <withdraw_honey>",
         "create modify pool time",
         (y) =>
-            y
-                .positional("pool_account", pool_account)
-                .positional("start_ido", { type: "number" })
-                .positional("end_ido", { type: "number" })
-                .positional("withdraw_honey", { type: "number" })
-                .option("dry-run", {
-                    desc: "dry run",
-                    type: "boolean",
-                    default: false,
-                }),
-        async (args) => {
+        y
+        .positional("pool_account", pool_account)
+        .positional("start_ido", { type: "number" })
+        .positional("end_ido", { type: "number" })
+        .positional("withdraw_honey", { type: "number" })
+        .option("dry-run", {
+            desc: "dry run",
+            type: "boolean",
+            default: false,
+        }),
+        async(args) => {
             console.log("args", args);
             createModifyPool(
                 new anchor.web3.PublicKey(args.pool_account),
@@ -741,24 +744,24 @@ yargs(hideBin(process.argv))
         "init <usdc_mint> <honey_mint> <honey_account> <honey_amount>",
         "initialize IDO pool",
         (y) =>
-            y
-                .positional("usdc_mint", usdc_mint)
-                .positional("honey_mint", honey_mint)
-                .positional("honey_account", honey_account)
-                .positional("honey_amount", {
-                    describe: "the amount of tokens offered in this sale 🍉",
-                    type: "number",
-                })
-                .option("start_time", start_time)
-                .option("deposit_duration", deposit_duration)
-                // .option("cancel_duration", cancel_duration)
-                .option("withdraw_ts", withdraw_ts)
-                .option("dry-run", {
-                    desc: "dry run",
-                    type: "boolean",
-                    default: false,
-                }),
-        async (args) => {
+        y
+        .positional("usdc_mint", usdc_mint)
+        .positional("honey_mint", honey_mint)
+        .positional("honey_account", honey_account)
+        .positional("honey_amount", {
+            describe: "the amount of tokens offered in this sale 🍉",
+            type: "number",
+        })
+        .option("start_time", start_time)
+        .option("deposit_duration", deposit_duration)
+        // .option("cancel_duration", cancel_duration)
+        .option("withdraw_ts", withdraw_ts)
+        .option("dry-run", {
+            desc: "dry run",
+            type: "boolean",
+            default: false,
+        }),
+        async(args) => {
             const start = new anchor.BN(args.start_time);
             const endIdo = new anchor.BN(args.deposit_duration).add(start);
             const withdrawTs = new anchor.BN(args.withdraw_ts);
@@ -785,20 +788,20 @@ yargs(hideBin(process.argv))
         "bid <pool_account> <usdc_account> <usdc_amount> <redeemable_account>",
         "place bid in IDO sale",
         (y) =>
-            y
-                .positional("pool_account", pool_account)
-                .positional("usdc_account", {
-                    describe: "the account supplying the token sale bids 💵",
-                    type: "string",
-                })
-                .positional("usdc_amount", {
-                    describe: "the amount of tokens bid for this sale 💵",
-                    type: "number",
-                })
-                .positional("redeemable_account", {
-                    describe: "the account receiving the redeemable pool token",
-                    type: "string",
-                }),
+        y
+        .positional("pool_account", pool_account)
+        .positional("usdc_account", {
+            describe: "the account supplying the token sale bids 💵",
+            type: "string",
+        })
+        .positional("usdc_amount", {
+            describe: "the amount of tokens bid for this sale 💵",
+            type: "number",
+        })
+        .positional("redeemable_account", {
+            describe: "the account receiving the redeemable pool token",
+            type: "string",
+        }),
         (args) => {
             // throw new Error('decimal should be processed');
             bid(
@@ -813,7 +816,7 @@ yargs(hideBin(process.argv))
         "inspect <pool_account>",
         "inspect pool config",
         (y) => y.positional("pool_account", pool_account),
-        async (args) => {
+        async(args) => {
             const account = await program.account.poolAccount.fetch(
                 new anchor.web3.PublicKey(args.pool_account)
             );
@@ -840,7 +843,7 @@ yargs(hideBin(process.argv))
         "withdraw-usdc <pool_account>",
         "withdraw usdc",
         (y) => y.positional("pool_account", pool_account),
-        async (args) => {
+        async(args) => {
             console.log("args", args);
             await withdrawUsdc(new anchor.web3.PublicKey(args.pool_account));
         }
@@ -849,7 +852,7 @@ yargs(hideBin(process.argv))
         "withdraw-honey <pool_account>",
         "withdraw honey",
         (y) => y.positional("pool_account", pool_account),
-        async (args) => {
+        async(args) => {
             console.log("args", args);
             await withdrawHoney(new anchor.web3.PublicKey(args.pool_account));
         }
@@ -858,22 +861,22 @@ yargs(hideBin(process.argv))
         //node cli/index.js create-multisig-tx-withdraw-usdc <pool_account> <receiver> <amount> --dry-run
         "create-withdraw-usdc <pool_account> <receiver> <amount>",
         (y) =>
-            y
-                .positional("pool_account", pool_account)
-                .positional("receiver", {
-                    desc: "spl token account",
-                    type: "string",
-                })
-                .positional("amount", {
-                    desc: "token amount in minimum unit",
-                    type: "string",
-                })
-                .option("dry-run", {
-                    desc: "dry run",
-                    type: "boolean",
-                    default: false,
-                }),
-        async (args) => {
+        y
+        .positional("pool_account", pool_account)
+        .positional("receiver", {
+            desc: "spl token account",
+            type: "string",
+        })
+        .positional("amount", {
+            desc: "token amount in minimum unit",
+            type: "string",
+        })
+        .option("dry-run", {
+            desc: "dry run",
+            type: "boolean",
+            default: false,
+        }),
+        async(args) => {
             console.log("args:", args);
             // console.log('program:', program);
             createWithdrawUsdc(

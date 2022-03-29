@@ -1,8 +1,8 @@
 [programs.localnet]
-ido_pool = "7TZqAhcqsPHoZ7sDAeUpDj5woKDDFMYGuX1bgoBsfGPv"
+ido_pool = "FvsasXFPtyEcGv7cRqutXAydR54DGiR3p3ohjqjn7F8Z"
 
 [programs.devnet]
-ido_pool = "7TZqAhcqsPHoZ7sDAeUpDj5woKDDFMYGuX1bgoBsfGPv"
+ido_pool = "FvsasXFPtyEcGv7cRqutXAydR54DGiR3p3ohjqjn7F8Z"
 
 [provider]
 cluster = "devnet"
